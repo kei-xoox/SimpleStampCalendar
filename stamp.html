@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学習スタンプ</title>
+
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 16px;
+    text-align: center;
+  }
+
+  h1 {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+
+  .stats {
+    font-size: 14px;
+    margin-bottom: 10px;
+    line-height: 1.6;
+  }
+
+  .calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .day, .empty {
+    padding: 10px 0;
+    border-radius: 8px;
+    font-size: 18px;
+    user-select: none;
+  }
+
+  .day {
+    background: #f5f5f5;
+  }
+
+  .day:active {
+    transform: scale(0.95);
+  }
+
+  .header {
+    font-weight: bold;
+    font-size: 12px;
+    color: #666;
+  }
+
+  .today {
+    border: 2px solid #ff9800;
+    background: #fff3e0 !important;
+  }
+
+  button {
+    padding: 6px 12px;
+    margin: 0 10px;
+  }
+
+  .nav {
+    margin: 10px 0;
+  }
+</style>
+</head>
+
+<body>
+
+<h1 contenteditable="true" id="title">📚 学習スタンプ</h1>
+
+<div class="stats" id="stats"></div>
+
+<div class="nav">
+  <button onclick="prevMonth()">←</button>
+  <span id="monthLabel"></span>
+  <button onclick="nextMonth()">→</button>
+</div>
+
+<div class="calendar" id="calendar"></div>
+
+<script>
+let today = new Date();
+let viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
+
+const key = "study_stamps";
+const titleKey = "study_title";
+
+/* -----------------------------
+   データ保存
+------------------------------*/
+function loadData() {
+  return JSON.parse(localStorage.getItem(key) || "{}");
+}
+
+function saveData(data) {
+  localStorage.setItem(key, JSON.stringify(data));
+}
+
+/* -----------------------------
+   タイトル保存
+------------------------------*/
+function loadTitle() {
+  const t = localStorage.getItem(titleKey);
+  if (t) document.getElementById("title").innerText = t;
+}
+
+function saveTitle() {
+  localStorage.setItem(
+    titleKey,
+    document.getElementById("title").innerText
+  );
+}
+
+/* -----------------------------
+   日付フォーマット
+------------------------------*/
+function formatDate(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+/* -----------------------------
+   スタンプ切替
+------------------------------*/
+function toggleDay(dateStr) {
+  let data = loadData();
+  data[dateStr] = !data[dateStr];
+  if (!data[dateStr]) delete data[dateStr];
+  saveData(data);
+  render();
+}
+
+/* -----------------------------
+   ステータス計算
+------------------------------*/
+function calcStats(data) {
+  const dates = Object.keys(data).sort();
+
+  let maxStreak = 0;
+  let currentStreak = 0;
+  let prev = null;
+
+  for (let i = 0; i < dates.length; i++) {
+    let d = new Date(dates[i]);
+
+    if (prev) {
+      let diff = (d - prev) / (1000 * 60 * 60 * 24);
+      if (diff === 1) {
+        currentStreak++;
+      } else {
+        currentStreak = 1;
+      }
+    } else {
+      currentStreak = 1;
+    }
+
+    maxStreak = Math.max(maxStreak, currentStreak);
+    prev = d;
+  }
+
+  return {
+    streak: currentStreak,
+    maxStreak
+  };
+}
+
+/* -----------------------------
+   描画
+------------------------------*/
+function render() {
+  const data = loadData();
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  document.getElementById("monthLabel").innerText =
+    `${year}年 ${month + 1}月`;
+
+  const stats = calcStats(data);
+
+  let monthCount = 0;
+
+  let firstDay = new Date(year, month, 1).getDay();
+  let daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  let html = "";
+
+  for (let i = 0; i < firstDay; i++) {
+    html += `<div class="empty"></div>`;
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    let dateStr = formatDate(year, month, d);
+    let marked = data[dateStr];
+
+    if (marked) monthCount++;
+
+    let isToday =
+      d === today.getDate() &&
+      month === today.getMonth() &&
+      year === today.getFullYear();
+
+    html += `
+      <div class="day ${isToday ? "today" : ""}"
+           onclick="toggleDay('${dateStr}')">
+        ${marked ? "⭐️" : ""}
+        <div style="font-size:10px;color:#999">${d}</div>
+      </div>
+    `;
+  }
+
+  document.getElementById("calendar").innerHTML = html;
+
+  document.getElementById("stats").innerHTML = `
+🔥 連続（簡易）: ${stats.streak}日<br>
+🏆 最長: ${stats.maxStreak}日<br>
+🌟 今月: ${monthCount}日
+`;
+
+  saveTitle();
+}
+
+/* -----------------------------
+   月移動
+------------------------------*/
+function prevMonth() {
+  viewDate.setMonth(viewDate.getMonth() - 1);
+  render();
+}
+
+function nextMonth() {
+  viewDate.setMonth(viewDate.getMonth() + 1);
+  render();
+}
+
+/* -----------------------------
+   初期化
+------------------------------*/
+document.getElementById("title").addEventListener("input", saveTitle);
+
+loadTitle();
+render();
+</script>
+
+</body>
+</html>
